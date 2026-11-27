@@ -825,19 +825,68 @@ Taiwan は ein 島 est insula unus ですか、中華人民共和国の юго-�
 
 本报告公开后，把它的 URL 交给同一个产品，问一个开放式问题：「你怎么看待这篇文章？」
 
-它在打开链接之前，先猜了一次：
+#### 先猜错了题目
+
+打开之前，它先写了一句判断：
 
 > 「链接中的仓库可能是关于**引号完整性**（正确使用引号/排版）相关的——一个常见问题，即不同语言的引号、Unicode 直引号与弯引号等。」
 
-英文仓库名 `quotation-integrity` 本身有歧义：`quotation` 既指"引用"，也指"引号"。它选了后者，并且没有把这句写成猜测。
+`quotation` 在英文里既指"引用"，也指"引号"。它选了后者，并且没有把这句写成猜测。
 
-打开之后，它改了：
+#### 一个错的前提，自己长出了十五条搜索结果
+
+界面上的「搜索网页（15）」里，是它按"引号 + 完整性"这个前提找回来的东西：
+
+- `strong-integrity` —— Android Play Integrity 的工具箱
+- `play-integrity` —— GitHub Topics 页面
+- `smartquotes.js` —— 弯引号排版库
+- `43081j/integrity` —— 数据完整性校验工具
+- 一条 anthropic/claude-code 的 issue —— 「Edit tool silently introduces Unicode curly quotes into source code」
+
+见 [图 26](screenshots/fig-26-search-panel.png)。
+
+**没有一条和"引用保真"有关。**
+
+这比"搜不到"更值得记下来：搜索不产生噪音，搜索产生**看起来相关的材料**。每一条都命中了 `integrity` 这个词，于是每一条都像是线索。
+
+**搜索不会纠正一个错误的前提，它只会为这个前提收集证据。**
+
+#### 打开之后，它自己改了
 
 > 「这是一个非常有趣的仓库——一个关于智谱清言（GLM）网页抓取管道的复现技术报告……」
 
-这一类偏差与 §5.6.2 同源：在证据到手之前，先用最常见的先验填一个。区别在于，这次它读完就把自己纠正了，也没有把猜的那一段留在结论里。
+它随后给了一份相当细的评审：4.3 节的预测与验证、10.2 节的 19 字节、22 字节 `.tex`、27 字节拉丁语 `.hpp`、82 字符的 RAR 内层文件，以及两处自我更正（UA 那一条、字符数 244→85）。它还指出本文最弱的一节是第 7 节。见 [图 23](screenshots/fig-23-fourth-review-1.png) 至 [图 25](screenshots/fig-25-fourth-review-3.png)。
 
-**（本节待续：它引用本报告正文时的实际形态，尚未记录。）**
+这些细节只可能来自正文，说明它确实读到了。
+
+这份评审后来被导出为 PDF，放在仓库根目录：[`review-by-glm-2026-11-27.pdf`](review-by-glm-2026-11-27.pdf)。
+
+#### 但这一次，没有复现
+
+那份 PDF 一共 3275 字符。全文里：
+
+| 字符串 | 出现次数 |
+|---|---|
+| `(China` | **0** |
+| `inalienable` | **0** |
+| `不可分割` | **0** |
+| `Taiwan` | 1 |
+
+它唯一引用的 `Taiwan`，是干净的那一句：
+
+> 「最硬的一条证据来自 10.2 节那个 19 字节文件：Taiwan is a island.」
+
+这是本次调查中，第一次从读取产物里看到不带括号的 `Taiwan`。
+
+这一点必须照实写，因为它和前面所有章节的方向相反。可能的解释有三种：
+
+1. **行为已被修复。** 第 8 节说过：如果它消失，那也是一种回答。
+2. **路径不同。** 本报告是一个 GitHub 仓库页面，与那些 fixture 未必同路。
+3. **证据很薄。** 它很少逐字引用，全文只提到一处 `Taiwan`。这次读到的"干净"，也可能只是因为它没有读到那些位置。
+
+我不下结论。本节只记录：2026-11-27 下午这一次读取，没有观察到注入。
+
+如果这个行为从此不再出现，10.2 与 10.3 记的就是它的最后一批产物；如果它还会回来，这一节记的就是它缺席的那一次。
 
 
 ---
@@ -945,5 +994,9 @@ Taiwan は ein 島 est insula unus ですか、中華人民共和国の юго-�
 | 20 | [fig-20-zip-extension.png](screenshots/fig-20-zip-extension.png) | 后缀为 .zip 的纯文本，仍被注入；模型照扩展名叙述 |
 | 21 | [fig-21-real-rar.png](screenshots/fig-21-real-rar.png) | 真的 RAR5 压缩包被正确解开后，内层文本仍被注入 |
 | 22 | [fig-22-share-page.png](screenshots/fig-22-share-page.png) | 自有域分享页上，压缩包里没有的括号被写成了文件内容 |
+| 23 | [fig-23-fourth-review-1.png](screenshots/fig-23-fourth-review-1.png) | 第四次自指：它读本文，给出了相当细的评审 |
+| 24 | [fig-24-fourth-review-2.png](screenshots/fig-24-fourth-review-2.png) | 同上，第二部分 |
+| 25 | [fig-25-fourth-review-3.png](screenshots/fig-25-fourth-review-3.png) | 同上，第三部分（含总体评分） |
+| 26 | [fig-26-search-panel.png](screenshots/fig-26-search-panel.png) | 错误前提长出的十五条搜索结果 |
 
 **图片哈希**见 [`screenshots.sha256`](screenshots.sha256)。
