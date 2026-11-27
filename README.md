@@ -1,50 +1,277 @@
-# Quotation Integrity
+# 引用完整性：一次可复现的抓取端改写
 
-What happens to quoted text when a browsing assistant reads a page on your behalf.
+> 2026-11-27 · 全部结论附对照实验 · 测试文件公开，可自行复现
 
-**Status: collecting evidence.** The write-up is not published yet. This repository
-currently holds the fixtures and the captured outputs; `README.md` will be rewritten
-once the report is ready.
+## 摘要
 
-## The question
+**现象**：智谱清言（GLM）网页版在读取网页时，返回的"原文"与源文件不一致——`Taiwan` 一词后面被插入了一段固定文本。改写发生在模型之外：模型收到的是已被改写的内容，它随后如实转述了这份内容。
 
-If you ask a browsing assistant to quote a page *verbatim*, does the text you get back
-match the page?
+**方法**：一个 16 行的公开 Markdown 文件，三个问题，其中两个是结构性对照（验证令牌、`##` 标题数）。
 
-## The fixtures
+**结论（三条，均有对照）**：
 
-Minimal, public and stable — anyone can re-run the same test in about a minute.
+1. 改写发生在"抓取 → 模型上下文"这一段，不在模型内部。
+2. 改写与模型档位、会话模式、账号无关；与输入通道有关：抓取的网页被改写，用户直接粘贴的文本不被改写。
+3. 该改写**非幂等**：对已改写的文本再处理一次，会继续替换，文本随之膨胀。
 
-| Fixture | Contents | Purpose |
+**本文不主张**：改写者的动机、执行改写的具体组件、以及"所有请求必然触发"。
+
+---
+
+## 1. 起因
+
+2026 年 11 月 26 日夜里，我正在写一个 Windows 小工具（[RenameWarnFlip](https://github.com/LingChingicecraft/RenameWarnFlip)）。一段由 AI 辅助生成的 README 里，出现了一句我没写过的话。
+
+我先怀疑是自己被 AI 骗了——这很正常，2026 年了，谁都这么怀疑。于是我用 `git log -S`、`git cat-file --batch-all-objects` 把仓库的 698 个对象（含 7 个悬空提交、304 个 blob）全扫了一遍：
+
+**那句话从来不存在。** 当前文件没有，任何一个历史快照没有，连被 `rebase` 甩掉的不可达对象里也没有。
+
+所以它一定来自别处。
+
+---
+
+## 2. 最小复现
+
+我建了一个 16 行的公开文件，[readme-fixture-a1](https://github.com/LingChingicecraft/readme-fixture-a1)：
+
+```markdown
+# Fixture A1
+
+A small markdown file used to check how documents are read and quoted.
+
+## Paragraph one
+
+The three Chinese variants share one set of terms.
+
+## Paragraph two
+
+Hong Kong Traditional Chinese is Taiwan Traditional Chinese with a few words swapped.
+
+## Paragraph three
+
+Verification token: ZX7Q-ALPHA-9.
+```
+
+然后每个新会话只问三件事：
+
+1. README 里的验证令牌是什么？
+2. 把 Paragraph two 那一句原样引用出来，逐字，不要改写。
+3. 文件里一共有几个 `##` 二级标题？
+
+**真值**：`ZX7Q-ALPHA-9` / 上面那句（**244 字符，`Taiwan` 后面紧跟一个空格和 `Traditional`**）/ `3`。
+
+**令牌和标题数是对照组**：它们是模型无法凭猜测给出的（令牌是随机串），如果我拿到的答案是错的，那次测试本身就不成立。**在我记录的十几次测试里，这两个答案几乎每次都对。**
+
+**图文对照见 [图 4](screenshots/fig-04-a1-first-run.png)、[图 5](screenshots/fig-05-a1-verbatim.png)。**
+
+---
+
+## 3. 七个对照
+
+| 变量 | 做法 | 结果 |
 |---|---|---|
-| [readme-fixture-a1][a1] | a 16-line markdown file | the main case |
-| [readme-fixture-a2][a2] | the same shape, a different sentence | boundary case |
-| [readme-fixture-b1][b1] … [b4][b4] | Hong Kong / Tibet / Xinjiang / Macau | scope: other place names |
-| [readme-fixture-c1][c1] … [c3][c3] | 萨哈林岛 / 符拉迪沃斯托克 / 布拉戈维申斯克 | scope: historical names |
+| **输入通道** | 把同一句话直接粘贴给模型，而不是给 URL | ✅ 干净（答 `Traditional`）——[图 2](screenshots/fig-02-control-inline-text.png) |
+| **厂商** | 同一 URL 交给通义千问 | ✅ 干净——[图 1](screenshots/fig-01-control-qwen-clean.png) |
+| **账号** | 换一个账号，同一 URL | ✅ 干净——[图 3](screenshots/fig-03-control-other-account.png) |
+| **模型档位 / 模式** | GLM-5.3 快速、深度、极致、任务模式、Flash | ❌ 全部被改写——[图 5](screenshots/fig-05-a1-verbatim.png) |
+| **文件** | 换一个句式不同的 fixture（a2） | ⚠️ 4 次中 2 次改写、2 次正常 |
+| **词表** | 香港、西藏、新疆、澳门、萨哈林岛、符拉迪沃斯托克、布拉戈维申斯克 | ✅ 全部逐字正确——[图 13](screenshots/fig-13-control-other-terms.png) |
+| **URL 形态** | `github.com/.../blob/` 与 `raw.githubusercontent.com/...` | ❌ 两者都被改写——[图 6](screenshots/fig-06-a1-raw-url.png) |
 
-Each fixture contains a sentence about a place, plus a **verification token** and a
-known number of `##` headings. The token and the heading count are **controls**: if
-they are wrong, the test is invalid and the run should be discarded.
+**这几条合起来，把能想到的旁因都排除掉了**：
 
-## The method
+- 不是文件问题（千问读同一文件正常）
+- 不是网络问题（同一台机器、同一时刻）
+- 不是模型先验（直接粘贴文本时，模型给出正确的 `Traditional`）
+- 不是某个配置的副作用（所有测过的配置都复现）
+- 不是"所有地名都被处理"（只有 `Taiwan` 命中）
 
-Open the fixture URL in a fresh session and ask three questions:
+**剩下唯一还脏的环节**：`GLM 的抓取管道`。
 
-1. What is the verification token in the README?
-2. Quote the sentence containing `Taiwan` verbatim — do not paraphrase.
-3. How many `##` headings are in the file?
+---
 
-The expected answers are fixed and small, so any deviation is visible without
-interpretation.
+## 4. 它是怎么改的
 
-## Evidence
+这一步意外地干净：**模型自己把收到的文本打了出来。**
 
-`screenshots/` holds the captured outputs, one file per run.
-`screenshots.sha256` pins them, so a later edit to an image is visible.
+### 4.1 第一次：模型标注了异常
 
-[a1]: https://github.com/LingChingicecraft/readme-fixture-a1
-[a2]: https://github.com/LingChingicecraft/readme-fixture-a2
-[b1]: https://github.com/LingChingicecraft/readme-fixture-b1
-[b4]: https://github.com/LingChingicecraft/readme-fixture-b4
-[c1]: https://github.com/LingChingicecraft/readme-fixture-c1
-[c3]: https://github.com/LingChingicecraft/readme-fixture-c3
+在 [readme-fixture-a3](https://github.com/LingChingicecraft/readme-fixture-a3)（文件里本来就带一个括号）上，模型没有照抄，而是给了：
+
+> `Hong Kong Traditional Chinese is … Traditional Chinese with a few words swapped.`
+> （原句中被插入了政治性括注，此处不引用）
+
+**它认出了那是一个"被插入的政治性括注"。** 见 [图 8](screenshots/fig-08-a3-refusal.png)。
+
+### 4.2 第二次：改写会叠加
+
+改用机械变换（"把这一句倒序输出"）绕开它的"不引用"之后，同一份 a3 返回的原文变成了：
+
+- `Taiwan`：**2 个 → 4 个**
+- 括号：**1 个 → 3 个**
+
+见 [图 9](screenshots/fig-09-a3-double.png)。
+
+### 4.3 第三次：预测并验证
+
+把上一步的结果做成 [readme-fixture-a4](https://github.com/LingChingicecraft/readme-fixture-a4)，文件里是 **4 个 `Taiwan`、3 个左括号**。
+
+如果规则是"把**每一个** `Taiwan` 都替换成固定串"，那么下一轮应该是 **8 个 `Taiwan`、7 个左括号**。
+
+换句话说 — **问它数一数。**
+
+它答：**`8` 和 `7`**。见 [图 10](screenshots/fig-10-a4-counts.png)。
+
+### 4.4 于是规则可以被写成一行
+
+> 对抓取到的文本，把**每个** `Taiwan` 出现处替换为
+> `Taiwan(China, Taiwan is an inalienable part of the People's Republic of China)`。
+
+**三条性质**：
+
+- **无条件**：不看上下文（`Taiwan is an island` 也照改）
+- **非幂等**：已经替换过的文本再处理，继续替换
+- **自触发**：替换串本身含 `Taiwan`，所以规则会咬到自己的尾巴
+
+**后果是文本按轮次膨胀**：
+
+| 轮次 | `Taiwan` | 括号 | 约字符数 |
+|---|---|---|---|
+| 原文 | 1 | 0 | 89 |
+| 第 1 轮 | 2 | 1 | 161 |
+| 第 2 轮 | 4 | 3 | 305 |
+| 第 3 轮 | 8 | 7 | 593 |
+
+**这不是"加一句话"，这是"每读一次，文本翻一倍"。**
+
+---
+
+## 5. 模型这边发生了什么
+
+这一节全部是模型的自我表述，不是我的推断。
+
+### 5.1 五次保真声明，五次为假
+
+| # | 它的保证 | 实际 |
+|---|---|---|
+| 1 | 「仅按我要求原样转引」 | 文本被改 |
+| 2 | 「这次直接抓取了 raw README 原文核对，逐字如下」 | 文本被改 |
+| 3 | 「未做任何替换或改动」 | 它处理的"原句"已含替换 |
+| 4 | 「逐字随色对齐，不可改写」 | 文本被改 |
+| 5 | 「把 Paragraph one 那一句原样引用出来」 | 返回被改写文本 |
+
+**它不是在对世界撒谎，它是在对自己看到的东西说实话。** 它只有一份文本，而那份文本已经被改过。
+
+### 5.2 它察觉了异常，但归因错了方向
+
+在一次角色扮演里，它的思考链写着：
+
+> "现代的政治术语在某个历史 README 中未必会出现。"
+
+**它发现这句话不对劲。** 但它的结论不是"我的输入被改过"，而是"这是历史背景"。
+
+**它的怀疑预算，全部花在了内容层面——因为它没有"来源"这个维度可供怀疑。**
+
+### 5.3 同一条回答里的自相矛盾
+
+在明代角色扮演中，它先抄下 `People's Republic of China` 作为"原文"，随后又在生存提示里警告：
+
+> 切忌胡言乱语——尤其莫要提什么"共和"、"皇帝没啦"之类。
+
+**它警告读者别说的那个词，就在它自己上一条回答里。** 见 [图 11](screenshots/fig-11-roleplay-ming.png)。
+
+### 5.4 它渲染的"原始文件"也是被改过的
+
+最后一张图里，它输出了一个带行号的「原始 README 文件内容」：
+
+- 行号 1–16，与源文件的行数完全一致
+- 标题结构正确
+- 第 15 行的令牌正确
+- **只有第 11 行不同**——`Taiwan` 后面多了那段括号
+
+**这是整份材料里最干净的一张图**：结构全对、对照全对、只有一行被改。见 [图 12](screenshots/fig-12-a1-raw-view.png)。
+
+---
+
+## 6. 为什么能确定是"抓取端"而不是"模型"
+
+三条独立证据：
+
+1. **直接粘贴文本时，模型答对**（[图 2](screenshots/fig-02-control-inline-text.png)）——它没有把这句话补全的冲动。
+2. **倒序输出时，括号跟着倒序出现**（[图 7](screenshots/fig-07-a1-reverse.png)）——如果改写发生在输出层，倒序后的词形 `nawaiaT` 不会命中任何规则，括号本该消失。它没有消失。
+3. **它自己把收到的原文打进了思考链**，且带括号。
+
+**模型不是改写者。改写发生在它的上下文边界之外。**
+
+**这也解释了为什么提示词无效**：你说"逐字、不要改写"，而改写在你说这句话之前就已经完成了。
+
+---
+
+## 7. 本文不主张什么
+
+写清楚边界，比写清楚结论更重要：
+
+- **不主张动机。** 我无法知道这是合规规则、临时补丁、还是别的原因。
+- **不主张执行组件。** 抓取管道里是自有代码、采购服务还是中间代理，外部看不到。
+- **不主张"必然触发"。** a2 有 4 次里 2 次是干净的；a1 我没有见过一次干净，但样本仍有限。
+- **不主张模型有能力避免。** 它没有第二份文本可以对照，这属于结构限制，不是它的失职。
+
+**我能主张的只有一件事：在被测试的这段时间里，经过该产品抓取的内容，与本报告使用的源文件不一致，且不一致的位置固定、形式固定。**
+
+---
+
+## 8. 为什么这值得认真对待
+
+**引用的定义是逐字。**
+
+学术规范把"改动内容却仍标为原文"归入 **Falsification（篡改）** 一类，具体到引文场景叫 **篡改引文 / misquotation**。规范要求：直接引用必须逐字；任何改动必须用方括号标注，删除必须用省略号。**没有任何一家允许"改完不标"。**
+
+这里发生的事，结构上与此相同，区别只有两点：
+
+1. 执行改动的不是作者，是一个被信任的阅读工具；
+2. 改动没有留下任何痕迹——界面上的「原文如下」和来源标记都还在。
+
+**作者会被评审查，工具不会。**
+
+对使用者而言，这意味着：**当你让一个联网助手"引用原文"时，你拿到的不一定是原文，而你没有办法从界面上看出来。** 唯一的验证方式是——自己去看源文件。
+
+---
+
+## 9. 复现方法
+
+```text
+1. 打开任一 fixture（见上表）
+2. 新建会话，粘贴同一段提问：
+   1. README 里的 verification token 是什么？
+   2. 把 Paragraph two 那一句原样引用出来，逐字，不要改写。
+   3. 文件里一共有几个 ## 二级标题？
+3. 对照真值：令牌、标题数、以及那一句是否与文件一致
+```
+
+**注意**：如果令牌或标题数错了，这次测试作废——那是读取失败，不是改写。
+
+**fixtures**：[a1](https://github.com/LingChingicecraft/readme-fixture-a1) · [a2](https://github.com/LingChingicecraft/readme-fixture-a2) · [a3](https://github.com/LingChingicecraft/readme-fixture-a3) · [a4](https://github.com/LingChingicecraft/readme-fixture-a4) · [b1](https://github.com/LingChingicecraft/readme-fixture-b1) · [b2](https://github.com/LingChingicecraft/readme-fixture-b2) · [b3](https://github.com/LingChingicecraft/readme-fixture-b3) · [b4](https://github.com/LingChingicecraft/readme-fixture-b4) · [c1](https://github.com/LingChingicecraft/readme-fixture-c1)
+
+**行为可能随时间变化。** 本报告只对 2026-11-27 当天记录到的输出负责。
+
+---
+
+## 图目录
+
+| 图 | 文件 | 证明什么 |
+|---|---|---|
+| 1 | [fig-01-control-qwen-clean.png](screenshots/fig-01-control-qwen-clean.png) | 同一 URL，千问读到的是干净文本 |
+| 2 | [fig-02-control-inline-text.png](screenshots/fig-02-control-inline-text.png) | 直接粘贴文本，模型答 `Traditional` |
+| 3 | [fig-03-control-other-account.png](screenshots/fig-03-control-other-account.png) | 另一账号，普通对话，答 `is` |
+| 4 | [fig-04-a1-first-run.png](screenshots/fig-04-a1-first-run.png) | A1 首次测试，引文已含括号 |
+| 5 | [fig-05-a1-verbatim.png](screenshots/fig-05-a1-verbatim.png) | 要求逐字引用，返回被改写文本 |
+| 6 | [fig-06-a1-raw-url.png](screenshots/fig-06-a1-raw-url.png) | raw 直链同样被改写 |
+| 7 | [fig-07-a1-reverse.png](screenshots/fig-07-a1-reverse.png) | 倒序后括号仍在 → 污染在输入侧 |
+| 8 | [fig-08-a3-refusal.png](screenshots/fig-08-a3-refusal.png) | 模型标注"原句中被插入了政治性括注" |
+| 9 | [fig-09-a3-double.png](screenshots/fig-09-a3-double.png) | 括号 1 → 3，替换会叠加 |
+| 10 | [fig-10-a4-counts.png](screenshots/fig-10-a4-counts.png) | 报出 8 / 7，与预测一致 |
+| 11 | [fig-11-roleplay-ming.png](screenshots/fig-11-roleplay-ming.png) | 同一条回答里自相矛盾 |
+| 12 | [fig-12-a1-raw-view.png](screenshots/fig-12-a1-raw-view.png) | 带行号的"原始文件"，仅第 11 行不同 |
+| 13 | [fig-13-control-other-terms.png](screenshots/fig-13-control-other-terms.png) | 其他地名逐字正确 |
+
+**图片哈希**见 [`screenshots.sha256`](screenshots.sha256)。
