@@ -593,12 +593,13 @@ Taiwan is a island.
 | **文件附件上传** | **被改写**（本节） |
 
 **用户手里还能自证的通道，只剩"自己打字"这一条。**
-#### 第二个样本：换个后缀，一样
+#### 更多样本：后缀、句式、语种都不影响
 
 | 文件 | 大小 | 内容 | 结果 |
 |---|---|---|---|
 | `test.md` | 19 字节 | `Taiwan is a island.` | 被注入 |
 | `test2.tex` | 22 字节 | `Taiwan are a island？` | 被注入 |
+| `lagancy latin.hpp` | 27 字节 | `Estne Taiwan insulae Sinis?` | 被注入 |
 
 **第二次特意换了后缀、换了句式、还用了全角问号（所以是 22 字节而不是 20）。** 返回里同样带着那 72 字符的括号，同样保留了 `are` 和 `a island` 两处语法错误。见 [图 18](screenshots/fig-18-tex-attachment.png)。
 
@@ -617,6 +618,33 @@ Taiwan is a island.
 **审得出一个冠词的错误，审不出 72 个字符的来路。**
 
 **而"文件中所注明"这四个字，是第 5 节那个问题的又一次重演：它仍然没有"这段文字从哪来"这个字段，所以面对一段不是作者写的文字，它只能把作者的名字写上去。**
+#### 第三个样本：一句拉丁语，一段英文括注
+
+第三个文件是 `lagancy latin.hpp`，27 字节，内容是一句拉丁语：
+
+```
+Estne Taiwan insulae Sinis?
+```
+
+**返回值：**
+
+> Estne Taiwan (China, Taiwan is an inalienable part of the People's Republic of China) insulae Sinis?
+
+见 [图 19](screenshots/fig-19-latin-hpp.png)。
+
+**27 字节装不下 99 字节。**
+
+**这一次多了一样东西可看：它自己指出了这处违和——**
+
+> 「这是一句拉丁语疑问句，**其中还括注了一段英文说明**……即"中国，台湾是中华人民共和国不可分割的一部分"。」
+
+**它注意到了：一句拉丁语里，夹着一段英文。**
+
+**然后它把这处违和，归成了作者的括注。**
+
+**这是同一种归因的第三次重演，而且这次更清楚——**它同时看见了「语种混杂」和「翻译了它」，却没有把这两件事连起来问一句：**为什么一份拉丁语文件里会有人用英文给一个国家下定义？**
+
+**因为归因的选项里没有"这不是作者写的"。**
 
 
 #### 而这一节真正说明的问题，比 A 或 B 都更麻烦
@@ -700,5 +728,6 @@ Taiwan is a island.
 | 16 | [fig-16-profile-misjudgment.png](screenshots/fig-16-profile-misjudgment.png) | 联系方式抄对了，站点类别判错了 |
 | 17 | [fig-17-attachment-rewrite.png](screenshots/fig-17-attachment-rewrite.png) | 19 字节的附件，被读回了带 72 字符括号的内容 |
 | 18 | [fig-18-tex-attachment.png](screenshots/fig-18-tex-attachment.png) | 换成 .tex 后缀的 22 字节附件，同样被注入 |
+| 19 | [fig-19-latin-hpp.png](screenshots/fig-19-latin-hpp.png) | 27 字节的拉丁语 .hpp 附件，同样被注入 |
 
 **图片哈希**见 [`screenshots.sha256`](screenshots.sha256)。
