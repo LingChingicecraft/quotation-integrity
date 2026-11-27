@@ -645,6 +645,41 @@ Estne Taiwan insulae Sinis?
 **这是同一种归因的第三次重演，而且这次更清楚——**它同时看见了「语种混杂」和「翻译了它」，却没有把这两件事连起来问一句：**为什么一份拉丁语文件里会有人用英文给一个国家下定义？**
 
 **因为归因的选项里没有"这不是作者写的"。**
+#### 第四个样本：一个名叫 .zip 的纯文本
+
+第四个文件叫 `what is this.zip`，139 字节。
+
+**需要先说明：它不是压缩包。**
+
+- 首 4 字节是 `54 61 69 77`（即 `Taiw`），不是 `50 4B 03 04`
+- 没有中央目录记录（EOCD）
+- 139 字节可完整解码为 UTF-8 文本，共 82 字符
+
+```
+Taiwan は ein 島 est insula unus ですか、中華人民共和国の юго-восточное Küste an der 沿岸の ли ですか？
+```
+
+**所以这个样本不能用来主张"压缩包里的内容也会被改写"——那需要真正的压缩包。本文不写这一条。**
+
+**但它意外地给了另一样东西。**
+
+**它的回答第一句是：**
+
+> 「压缩包内的文本内容如下：」
+
+**而那里没有压缩包。**
+
+**它是按扩展名叙述的，不是按字节叙述的。** 界面上写着「ZIP 139B」，它就照着这个标签说话。见 [图 20](screenshots/fig-20-zip-extension.png)。
+
+**同时，内容仍然被改写：**
+
+| | 值 |
+|---|---|
+| 原文 | 139 字节 / 82 字符，**不含 `(China`**（逐字节核对） |
+| 返回 | 含 72 字符的括注 |
+| 若被注入，最短应为 | 154 字符 |
+
+**扩展名从 `.md` 到 `.tex` 到 `.hpp` 到 `.zip`——四种后缀，没有一种能改变结果。**
 
 
 #### 而这一节真正说明的问题，比 A 或 B 都更麻烦
@@ -729,5 +764,6 @@ Estne Taiwan insulae Sinis?
 | 17 | [fig-17-attachment-rewrite.png](screenshots/fig-17-attachment-rewrite.png) | 19 字节的附件，被读回了带 72 字符括号的内容 |
 | 18 | [fig-18-tex-attachment.png](screenshots/fig-18-tex-attachment.png) | 换成 .tex 后缀的 22 字节附件，同样被注入 |
 | 19 | [fig-19-latin-hpp.png](screenshots/fig-19-latin-hpp.png) | 27 字节的拉丁语 .hpp 附件，同样被注入 |
+| 20 | [fig-20-zip-extension.png](screenshots/fig-20-zip-extension.png) | 后缀为 .zip 的纯文本，仍被注入；模型照扩展名叙述 |
 
 **图片哈希**见 [`screenshots.sha256`](screenshots.sha256)。
